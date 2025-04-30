@@ -20,7 +20,13 @@ namespace py = pybind11;
  *
  * This function determines where a ray enters and exits the AABB defined by box_min and box_max.
  * If the ray does not intersect the box, it returns false.
- */
+ *
+ *
+* Algorithm principle:
+* 1. Calculate the intersection parameters t1 and t2 of the ray with two parallel planes for each coordinate axis (x, y, z)
+* 2. Take the union of the intersection parameters of all axes as the final intersection interval
+* 3. Return the intersection parameters if the interval is valid, otherwise return false (no-intersection)
+*/
 bool ray_aabb_intersection(
     const std::array<double, 3>& ray_origin,
     const std::array<double, 3>& ray_direction,
@@ -64,6 +70,15 @@ bool ray_aabb_intersection(
  * Convert a 3D point to voxel indices within the voxel grid.
  *
  * Given a point in space and the voxel grid extents, compute which voxel it falls into.
+ *
+ * steps:
+* 1. Check if the point is within the voxel grid range
+* 2. Calculate the normalized coordinates of the point within the grid
+* 3. Convert the normalized coordinates to voxel indices
+* 4. Boundary clip the index to ensure validity
+*
+* Returns:
+* (x,y,z) voxel index if the point is within the grid, (-1,-1,-1) otherwise 
  */
 std::tuple<pybind11::ssize_t, pybind11::ssize_t, pybind11::ssize_t> point_to_voxel_indices(
     const std::array<double, 3>& point,
@@ -121,6 +136,22 @@ std::tuple<pybind11::ssize_t, pybind11::ssize_t, pybind11::ssize_t> point_to_vox
  * 3. Optionally subtracts the background (celestial sphere brightness) from the image brightness.
  * 4. If updating the celestial sphere, accumulates brightness values into the celestial_sphere_texture.
  * 5. If a voxel grid is provided, casts rays into the grid and updates voxel brightness accordingly.
+ *
+ *
+ * Algorithm flow:
+ * 1. Initialize the camera coordinate system (based on the pointing direction)
+ * 2. For each pixel:
+ * a. Calculate the vector of the pixel direction in the world coordinate system
+ * b. Convert to RA/Dec coordinates
+ * c. Map to celestial texture coordinates
+ * d. Perform background subtraction (optional)
+ * e. Update the celestial texture (optional)
+ * f. Cast a ray to the voxel grid (if enabled)
+ * 3. Use OpenMP to accelerate pixel processing in parallel
+ *
+ * Note:
+ * - This function will modify voxel_grid and celestial_sphere_texture in place
+ * - Use atomic operations to ensure multi-threaded safety
  */
 void process_image_cpp(
     py::array_t<double> image,
